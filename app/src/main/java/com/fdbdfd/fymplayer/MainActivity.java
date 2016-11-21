@@ -1,6 +1,7 @@
 package com.fdbdfd.fymplayer;
 
 import android.app.Activity;
+import android.content.Intent;
 import android.content.pm.ActivityInfo;
 import android.database.Cursor;
 import android.os.Bundle;
@@ -19,8 +20,9 @@ import io.vov.vitamio.widget.VideoView;
 
 public class MainActivity extends Activity {
 
+    public static final String TAG_EXIT = "exit";
     private VideoView videoView;
-    ArrayList<String> listVideo = new ArrayList<String>();
+    ArrayList<String> listVideo = new ArrayList<>();
     private int idx = 0;
 
     @Override
@@ -53,15 +55,15 @@ public class MainActivity extends Activity {
                 null, null);
         if (cursor != null){
             while (cursor.moveToNext()) {
-                System.out.println(cursor.getString(0)); // 视频文件名
-                System.out.println(cursor.getString(1)); // 视频绝对路径
+//                System.out.println(cursor.getString(0)); // 视频文件名
+//                System.out.println(cursor.getString(1)); // 视频绝对路径
                 listVideo.add(cursor.getString(1));
             }
             cursor.close();
         }
     }
 
-    public void playVideo (int idx){
+    public void playVideo (final int idx){
         MediaController mediaController = new MediaController(this);
         videoView.setVideoPath(listVideo.get(idx));
         videoView.setMediaController(mediaController);
@@ -70,7 +72,7 @@ public class MainActivity extends Activity {
             @Override
             public void onCompletion(MediaPlayer mp) {
                 videoView.stopPlayback();
-                if(next() ==(listVideo.size()-1)) {
+                if(idx ==(listVideo.size()-1)) {
                     Toast.makeText(MainActivity.this, "所有视频已播放,重新播放", Toast.LENGTH_SHORT).show();
                 }
                 playVideo(next());
@@ -78,9 +80,25 @@ public class MainActivity extends Activity {
         });
     }
 
+    /*
+    列表循环
+     */
     public int next(){
         int size = listVideo.size();
         idx = ++idx % size;
         return idx;
+    }
+
+    /*
+
+     */
+    protected void onNewIntent (Intent exitIntent) {
+        super.onNewIntent(exitIntent);
+        if (exitIntent != null) {
+            boolean isExit = exitIntent.getBooleanExtra(TAG_EXIT, false);
+            if (isExit) {
+                this.finish();
+            }
+        }
     }
 }
