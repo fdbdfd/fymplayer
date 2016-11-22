@@ -36,7 +36,7 @@
 
         <receiver android:name=".receiver.UsbBroadCastReceiver">
             <intent-filter>
-                <action android:name="android.intent.action.MEDIA_MOUNTED"/>
+                <action android:name="android.intent.action.MEDIA_SCANNER_FINISHED"/>
                 <action android:name="android.intent.action.MEDIA_EJECT"/>
                 <data android:scheme="file"/>
             </intent-filter>
