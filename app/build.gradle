@@ -5,7 +5,7 @@ android {
     buildToolsVersion "24.0.1"
     defaultConfig {
         applicationId "com.fdbdfd.fymplayer"
-        minSdkVersion 19
+        minSdkVersion 17
         targetSdkVersion 23
         versionCode 1
         versionName "1.0"
@@ -26,5 +26,5 @@ dependencies {
     })
     compile 'com.android.support:appcompat-v7:23.4.0'
     testCompile 'junit:junit:4.12'
-    compile project (':vitamio')
+    compile project (':InitActivity')
 }

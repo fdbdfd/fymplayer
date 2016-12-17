@@ -3,12 +3,10 @@ package com.fdbdfd.fymplayer;
 import android.app.Activity;
 import android.content.ContentValues;
 import android.content.Intent;
-import android.content.pm.ActivityInfo;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.os.Bundle;
 import android.provider.MediaStore;
-import android.util.Log;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.Toast;
@@ -19,7 +17,6 @@ import java.util.ArrayList;
 
 import io.vov.vitamio.MediaPlayer;
 import io.vov.vitamio.Vitamio;
-import io.vov.vitamio.widget.MediaController;
 import io.vov.vitamio.widget.VideoView;
 
 
@@ -27,8 +24,8 @@ public class MainActivity extends Activity {
 
     public static final String TAG_EXIT = "exit"; //APP退出
     private VideoView videoView;
-    ArrayList<String> listVideo = new ArrayList<>();
-    private int index = 0;//listVideo的下标
+    private ArrayList<String> listVideo = new ArrayList<>();
+    private int index;//listVideo的下标
     private SQLiteDatabase db;
     private String recordPath; //数据库储存的路径
     private ContentValues values = new ContentValues(); //用于向数据库保存数据
@@ -52,6 +49,12 @@ public class MainActivity extends Activity {
 
         searchFile();
 
+        if (listVideo.isEmpty()){
+            Toast.makeText(this,"没有找到视频，若视频确实存在请向开发者反馈该问题",Toast.LENGTH_LONG).show();
+            finish(); //APP结束运行
+            return;
+        }
+
         Cursor cursor = db.query("movie",null,null,null,null,null,null);
         if  (cursor != null) {
             while (cursor.moveToNext()) {
@@ -62,12 +65,11 @@ public class MainActivity extends Activity {
             cursor.close();
         }
 
-        if (recordPath == null) {
-            Log.i("MainActivity","第一次进入");
-            playVideo(getPath(), time);
-        }else {
-            Log.i("MainActivity","断点续播"+position);
+        if (recordPath != null && videoIsExit(recordPath) ) {  //确保当视频被删除后app依然能够运行
             playVideo(recordPath,position);
+        }else {
+            index = 0; //让视频从第一个开始播放
+            playVideo(getPath(), time);
         }
     }
 
@@ -93,13 +95,24 @@ public class MainActivity extends Activity {
     }
 
     public void playVideo (final String path, final long seekToPosition){
-
-        saveDate();
-        MediaController mediaController = new MediaController(this);
+        if (path != recordPath){  //确保数据不会重复储存
+            saveDate();
+        }
         videoView.setVideoPath(path);
-        videoView.setMediaController(mediaController);
-        videoView.start();
-        videoView.seekTo(seekToPosition);
+        videoView.requestFocus();
+        videoView.setOnPreparedListener(new MediaPlayer.OnPreparedListener() {
+            @Override
+            public void onPrepared(MediaPlayer mp) {
+                videoView.seekTo(seekToPosition);
+                videoView.setOnSeekCompleteListener(new MediaPlayer.OnSeekCompleteListener() {
+                    @Override
+                    public void onSeekComplete(MediaPlayer mp) {
+                        videoView.start();
+                    }
+                });
+            }
+        });
+
         startThread();
         videoView.setOnCompletionListener(new MediaPlayer.OnCompletionListener() {
             @Override
@@ -169,5 +182,17 @@ public class MainActivity extends Activity {
             }
         });
         mThread.start();
+    }
+
+    /*
+    判断文件路径是否还存在于SD卡上
+     */
+    public boolean videoIsExit (String path){
+        for (String format:listVideo){
+            if (path.contains(format)){
+                return true;
+            }
+        }
+        return false;
     }
 }
