@@ -65,11 +65,17 @@ public class MainActivity extends Activity {
             cursor.close();
         }
 
-        if (recordPath != null && videoIsExit(recordPath) ) {  //确保当视频被删除后app依然能够运行
-            playVideo(recordPath,position);
-        }else {
+        if (recordPath == null){
             index = 0; //让视频从第一个开始播放
             playVideo(getPath(), time);
+        } else {
+            if (videoIsExit(recordPath)){ //确保当视频被删除后app依然能够运行
+                playVideo(recordPath,position);
+            } else {
+                db.delete("movie", "path = ?", new String[] { recordPath }); //去掉已被删除的视频的播放记录，以免出现数据冲突（即保证数据库中只有一条数据）
+                index = 0; //让视频从第一个开始播放
+                playVideo(getPath(), time);
+            }
         }
     }
 
@@ -95,7 +101,7 @@ public class MainActivity extends Activity {
     }
 
     public void playVideo (final String path, final long seekToPosition){
-        if (path != recordPath){  //确保数据不会重复储存
+        if (!path.equals(recordPath) ){  //确保数据不会重复储存
             saveDate();
         }
         videoView.setVideoPath(path);
