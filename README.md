@@ -16,3 +16,7 @@ windows、Android Studio
 ## 软件详细描述
 
 软件基于Vitamio多媒体开发框架开发。因为运行平台没有任何可操作的按钮或触控方式，所以开发的难度被大大降低，手势操作、双击返回等功能不必添加，该软件需要实现的功能就是不需要任何操作就进行搜索并直接循环播放视频。
+
+## 具体实现
+
+监听ACTION_MEDIA_MOUNTED广播，当有U盘插入时启动ScannerService服务，在ScannerService中开启线程进行递归遍历查找并保存至数据库，数据库使用LitePal开源数据库框架简化操作，搜索完成后跳转至主界面循环播放视频，通过SharedPreference保存播放数据用来实现断点续播。

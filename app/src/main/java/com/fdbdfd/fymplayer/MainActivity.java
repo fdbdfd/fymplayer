@@ -1,36 +1,38 @@
 package com.fdbdfd.fymplayer;
 
 import android.app.Activity;
-import android.content.ContentValues;
 import android.content.Intent;
-import android.database.Cursor;
-import android.database.sqlite.SQLiteDatabase;
+import android.content.SharedPreferences;
 import android.os.Bundle;
-import android.provider.MediaStore;
+import android.os.Environment;
+import android.util.Log;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.Toast;
 
-import com.fdbdfd.fymplayer.database.MovieDatabaseHelper;
 
-import java.util.ArrayList;
+import com.fdbdfd.fymplayer.unit.MediaFile;
+
+import org.litepal.crud.DataSupport;
+
+import java.util.List;
 
 import io.vov.vitamio.MediaPlayer;
 import io.vov.vitamio.Vitamio;
+import io.vov.vitamio.widget.MediaController;
 import io.vov.vitamio.widget.VideoView;
 
 
-public class MainActivity extends Activity {
 
+public class MainActivity extends Activity implements
+        MediaPlayer.OnPreparedListener,MediaPlayer.OnCompletionListener,MediaPlayer.OnSeekCompleteListener,MediaPlayer.OnErrorListener{
+
+    private static final String TAG = "MainActivity";
     public static final String TAG_EXIT = "exit"; //APP退出
     private VideoView videoView;
-    private ArrayList<String> listVideo = new ArrayList<>();
-    private int index;//listVideo的下标
-    private SQLiteDatabase db;
-    private String recordPath; //数据库储存的路径
-    private ContentValues values = new ContentValues(); //用于向数据库保存数据
-    private long time = 0, position; //播放时间
-    private boolean flag = true; //标记（用于停止线程）
+    private List<MediaFile> mediaFiles;
+    private int index = 0; //List下标
+    private long postion; //断点位置
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -40,108 +42,59 @@ public class MainActivity extends Activity {
         getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN, WindowManager.LayoutParams.FLAG_FULLSCREEN); //全屏
         setContentView(R.layout.playlayout);
 
+        SharedPreferences sharedPreferences = getSharedPreferences("media", MODE_PRIVATE);
+        index = sharedPreferences.getInt("currentpath", 0);
+        String path = sharedPreferences.getString("currentpath", null);
+        postion = sharedPreferences.getLong("postion", 0L);
+
+        mediaFiles = DataSupport.findAll(MediaFile.class);
         videoView = (VideoView) findViewById(R.id.vv);
         videoView.setSystemUiVisibility(View.SYSTEM_UI_FLAG_HIDE_NAVIGATION); //隐藏状态栏
 
-        MovieDatabaseHelper movieDatabaseHelper = new MovieDatabaseHelper(this,"Movie.db",null,1);
-        movieDatabaseHelper.getWritableDatabase();
-        db = movieDatabaseHelper.getWritableDatabase();
-
-        searchFile();
-
-        if (listVideo.isEmpty()){
-            Toast.makeText(this,"没有找到视频，若视频确实存在请向开发者反馈该问题",Toast.LENGTH_LONG).show();
-            finish(); //APP结束运行
+        if (mediaFiles.isEmpty()) {
+            Toast.makeText(MainActivity.this, "没有找到视频", Toast.LENGTH_LONG).show();
+            Log.e(TAG, Environment.getExternalStorageDirectory().getAbsolutePath());
+            finish();
             return;
         }
 
-        Cursor cursor = db.query("movie",null,null,null,null,null,null);
-        if  (cursor != null) {
-            while (cursor.moveToNext()) {
-                index = cursor.getInt(cursor.getColumnIndex("number"));
-                recordPath = cursor.getString(cursor.getColumnIndex("path"));
-                position = cursor.getLong(cursor.getColumnIndex("time"));
-            }
-            cursor.close();
-        }
-
-        if (recordPath == null){
-            index = 0; //让视频从第一个开始播放
-            playVideo(getPath(), time);
-        } else {
-            if (videoIsExit(recordPath)){ //确保当视频被删除后app依然能够运行
-                playVideo(recordPath,position);
-            } else {
-                db.delete("movie", "path = ?", new String[] { recordPath }); //去掉已被删除的视频的播放记录，以免出现数据冲突（即保证数据库中只有一条数据）
-                index = 0; //让视频从第一个开始播放
-                playVideo(getPath(), time);
-            }
+        //若储存有路径则继续播放
+        if (path == null) {
+            mediaPlay(getMediaPath());
+        }else {
+            mediaPlay(path);
         }
     }
-
-    /*
-    利用MediaStore多媒体数据库获取视频信息
-     */
-    public void searchFile(){
-
-        String str[] = {MediaStore.Video.Media.DISPLAY_NAME,
-                MediaStore.Video.Media.DATA};
-
-        Cursor cursor = MainActivity.this.getContentResolver().query(
-                MediaStore.Video.Media.EXTERNAL_CONTENT_URI, str, null,
-                null, null);
-        if (cursor != null){
-            while (cursor.moveToNext()) {
-//                System.out.println(cursor.getString(0)); // 视频文件名
-//                System.out.println(cursor.getString(1)); // 视频绝对路径
-                listVideo.add(cursor.getString(1));
-            }
-            cursor.close();
-        }
-    }
-
-    public void playVideo (final String path, final long seekToPosition){
-        if (!path.equals(recordPath) ){  //确保数据不会重复储存
-            saveDate();
-        }
+    private void mediaPlay (String path){
+        videoView.setHardwareDecoder(true);
         videoView.setVideoPath(path);
-        videoView.requestFocus();
-        videoView.setOnPreparedListener(new MediaPlayer.OnPreparedListener() {
-            @Override
-            public void onPrepared(MediaPlayer mp) {
-                videoView.seekTo(seekToPosition);
-                videoView.setOnSeekCompleteListener(new MediaPlayer.OnSeekCompleteListener() {
-                    @Override
-                    public void onSeekComplete(MediaPlayer mp) {
-                        videoView.start();
-                    }
-                });
-            }
-        });
-
-        startThread();
-        videoView.setOnCompletionListener(new MediaPlayer.OnCompletionListener() {
-            @Override
-            public void onCompletion(MediaPlayer mp) {
-                videoView.stopPlayback();
-                flag = false; //停止线程
-                db.delete("movie", "path = ?", new String[] { path }); //删除数据
-                index = index + 1; //下标+1
-                playVideo(getPath(),time);
-            }
-        });
+        videoView.setMediaController(new MediaController(this));
+        videoView.setOnPreparedListener(this);
+        videoView.setOnErrorListener(this);
+        videoView.setOnSeekCompleteListener(this);
+        videoView.setOnCompletionListener(this);
     }
 
-    /*
-    获取路径
-     */
-    public String getPath(){
-
-        if (index > listVideo.size()-1){
+    private String getMediaPath(){
+        if (index == mediaFiles.size() ){
             index = 0;
         }
-        return listVideo.get(index);
+        return mediaFiles.get(index).getPath();
     }
+
+    @Override
+    protected void onDestroy() {
+        SharedPreferences.Editor editor = getSharedPreferences("media",MODE_PRIVATE).edit();
+        editor.putInt("currentindex",index);
+        editor.putString("currentpath",getMediaPath());
+        editor.putLong("postion",videoView.getCurrentPosition());
+        editor.apply();  //保存播放的视频路径及播放的位置
+        Log.v(TAG,"onDestroy");
+        Log.v(TAG,"onDestroy"+videoView.getCurrentPosition());
+        MediaFile.deleteAll(MediaFile.class); //清除数据库数据避免重复
+        super.onDestroy();
+    }
+
 
     /*
     APP接受SD卡拔出的广播退出
@@ -155,50 +108,38 @@ public class MainActivity extends Activity {
             }
         }
     }
-    /*
-    保存下标、路径、时间
-     */
 
-    public void saveDate (){
-        values.put("number", index);
-        values.put("path", getPath());
-        values.put("time", time);
-        db.insert("movie", null, values); // 插入数据
-        values.clear();
+
+
+    @Override
+    public void onCompletion(MediaPlayer mp) {
+        nextMedia();
     }
 
     /*
-    启动线程，一秒更新一次
+    视频被删除或打不开时，播放下一个
      */
-    public void startThread (){
-
-        Thread mThread = new Thread(new Runnable() {
-            @Override
-            public void run() {
-                while(flag){
-                    try {
-                        Thread.sleep(1000);
-                        long temp= videoView.getCurrentPosition();
-                        values.put("time", temp);
-                        db.update("movie", values, "path = ?", new String[] { getPath() });
-                    } catch (InterruptedException e) {
-                        e.printStackTrace();
-                    }
-                }
-            }
-        });
-        mThread.start();
-    }
-
-    /*
-    判断文件路径是否还存在于SD卡上
-     */
-    public boolean videoIsExit (String path){
-        for (String format:listVideo){
-            if (path.contains(format)){
-                return true;
-            }
-        }
+    @Override
+    public boolean onError(MediaPlayer mp, int what, int extra) {
+        postion = 0L; //避免因视频被删除导致下个视频播放时被定位
+        nextMedia();
         return false;
+    }
+
+    @Override
+    public void onPrepared(MediaPlayer mp) {
+        videoView.seekTo(postion);
+    }
+
+    @Override
+    public void onSeekComplete(MediaPlayer mp) {
+        videoView.start();
+    }
+
+    protected void nextMedia (){
+        Log.v(TAG,"nextMedia");
+        videoView.stopPlayback(); //停止视频播放，并释放资源。
+        index = index + 1;
+        mediaPlay(getMediaPath());
     }
 }
