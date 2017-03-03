@@ -86,15 +86,7 @@ public class MainActivity extends Activity implements
 
     @Override
     protected void onDestroy() {
-
-        long temp = videoView.getCurrentPosition();
-        SharedPreferences.Editor editor = getSharedPreferences("media",MODE_PRIVATE).edit();
-        editor.putInt("currentindex",index);
-        editor.putLong("postion",temp);
-        editor.apply();  //保存播放的视频路径及播放的位置
         Log.v(TAG,"onDestroy");
-        Log.v(TAG,"onDestroy"+temp);
-
         super.onDestroy();
     }
 
@@ -107,8 +99,12 @@ public class MainActivity extends Activity implements
         if (exitIntent != null) {
             boolean isExit = exitIntent.getBooleanExtra(TAG_EXIT, false);
             if (isExit) {
+                SharedPreferences.Editor editor = getSharedPreferences("media",MODE_PRIVATE).edit();
+                editor.putInt("currentindex",index);
+                editor.putLong("postion",videoView.getCurrentPosition());
+                editor.apply();  //保存播放的视频路径及播放的位置
                 MediaFile.deleteAll(MediaFile.class); //清除数据库数据避免重复
-                this.finish();
+                MainActivity.this.finish();
             }
         }
     }
