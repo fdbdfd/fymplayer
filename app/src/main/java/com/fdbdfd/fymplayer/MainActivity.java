@@ -4,13 +4,13 @@ import android.app.Activity;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Bundle;
-import android.os.Environment;
 import android.util.Log;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.Toast;
 
 
+import com.fdbdfd.fymplayer.service.ScannerService;
 import com.fdbdfd.fymplayer.unit.MediaFile;
 
 import org.litepal.crud.DataSupport;
@@ -42,9 +42,12 @@ public class MainActivity extends Activity implements
         getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN, WindowManager.LayoutParams.FLAG_FULLSCREEN); //全屏
         setContentView(R.layout.playlayout);
 
+        Intent stopIntent = new Intent(MainActivity.this, ScannerService.class);
+        stopService(stopIntent);
+
         SharedPreferences sharedPreferences = getSharedPreferences("media", MODE_PRIVATE);
-        index = sharedPreferences.getInt("currentpath", 0);
-        String path = sharedPreferences.getString("currentpath", null);
+        index = sharedPreferences.getInt("currentindex", 0);
+        String currentPath = sharedPreferences.getString("currentpath", null);
         postion = sharedPreferences.getLong("postion", 0L);
 
         mediaFiles = DataSupport.findAll(MediaFile.class);
@@ -53,19 +56,18 @@ public class MainActivity extends Activity implements
 
         if (mediaFiles.isEmpty()) {
             Toast.makeText(MainActivity.this, "没有找到视频", Toast.LENGTH_LONG).show();
-            Log.e(TAG, Environment.getExternalStorageDirectory().getAbsolutePath());
-            finish();
-            return;
-        }
-
-        //若储存有路径则继续播放
-        if (path == null) {
+            MainActivity.this.finish();
+        }else if (currentPath == null) {
             mediaPlay(getMediaPath());
         }else {
-            mediaPlay(path);
+            mediaPlay(currentPath);
         }
     }
+
     private void mediaPlay (String path){
+        SharedPreferences.Editor editor = getSharedPreferences("media",MODE_PRIVATE).edit();
+        editor.putString("currentpath",path);
+        editor.apply();
         videoView.setHardwareDecoder(true);
         videoView.setVideoPath(path);
         videoView.setMediaController(new MediaController(this));
@@ -84,14 +86,15 @@ public class MainActivity extends Activity implements
 
     @Override
     protected void onDestroy() {
+
+        long temp = videoView.getCurrentPosition();
         SharedPreferences.Editor editor = getSharedPreferences("media",MODE_PRIVATE).edit();
         editor.putInt("currentindex",index);
-        editor.putString("currentpath",getMediaPath());
-        editor.putLong("postion",videoView.getCurrentPosition());
+        editor.putLong("postion",temp);
         editor.apply();  //保存播放的视频路径及播放的位置
         Log.v(TAG,"onDestroy");
-        Log.v(TAG,"onDestroy"+videoView.getCurrentPosition());
-        MediaFile.deleteAll(MediaFile.class); //清除数据库数据避免重复
+        Log.v(TAG,"onDestroy"+temp);
+
         super.onDestroy();
     }
 
@@ -104,6 +107,7 @@ public class MainActivity extends Activity implements
         if (exitIntent != null) {
             boolean isExit = exitIntent.getBooleanExtra(TAG_EXIT, false);
             if (isExit) {
+                MediaFile.deleteAll(MediaFile.class); //清除数据库数据避免重复
                 this.finish();
             }
         }

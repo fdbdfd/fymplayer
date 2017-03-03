@@ -21,8 +21,7 @@ import java.io.File;
 public class ScannerService extends Service implements Runnable {
 
     public static final String EXTRA_DIRECTORY = "scan_directory";
-    public String path;
-
+    private String path;
 
 
     @Override
@@ -78,11 +77,11 @@ public class ScannerService extends Service implements Runnable {
         Intent intent = new Intent(ScannerService.this, MainActivity.class);
         intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         startActivity(intent);
-        stopSelf();
     }
 
     @Override
     public void onDestroy() {
+        Log.v("fymplayer","搜索服务关闭");
         super.onDestroy();
     }
 }
