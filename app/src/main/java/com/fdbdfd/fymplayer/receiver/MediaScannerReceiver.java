@@ -3,11 +3,9 @@ package com.fdbdfd.fymplayer.receiver;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
-import android.os.Environment;
 
 
 import com.fdbdfd.fymplayer.MainActivity;
-import com.fdbdfd.fymplayer.service.ScannerService;
 
 
 public class MediaScannerReceiver extends BroadcastReceiver {
@@ -16,9 +14,9 @@ public class MediaScannerReceiver extends BroadcastReceiver {
         String action = intent.getAction();
         switch (action) {
             case Intent.ACTION_MEDIA_MOUNTED:
-                Intent scannerIntent = new Intent(context,ScannerService.class);
-                scannerIntent.putExtra(ScannerService.EXTRA_DIRECTORY, Environment.getExternalStorageDirectory().getAbsolutePath());
-                context.startService(scannerIntent);
+                Intent startIntent = new Intent(context,MainActivity.class);
+                startIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                context.startActivity(startIntent);
                 break;
             case Intent.ACTION_MEDIA_EJECT:
                 Intent exitIntent = new Intent(context, MainActivity.class);

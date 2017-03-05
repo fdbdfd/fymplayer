@@ -42,8 +42,6 @@
             </intent-filter>
         </receiver>
 
-        <service android:name=".service.ScannerService" />
-
     </application>
 
 </manifest>

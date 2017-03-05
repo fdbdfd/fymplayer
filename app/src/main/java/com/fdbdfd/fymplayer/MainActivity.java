@@ -1,20 +1,24 @@
 package com.fdbdfd.fymplayer;
 
 import android.app.Activity;
+import android.app.ProgressDialog;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.os.AsyncTask;
 import android.os.Bundle;
+import android.os.Environment;
 import android.util.Log;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.Toast;
 
 
-import com.fdbdfd.fymplayer.service.ScannerService;
+import com.fdbdfd.fymplayer.unit.FileUnit;
 import com.fdbdfd.fymplayer.unit.MediaFile;
 
 import org.litepal.crud.DataSupport;
 
+import java.io.File;
 import java.util.List;
 
 import io.vov.vitamio.MediaPlayer;
@@ -33,6 +37,8 @@ public class MainActivity extends Activity implements
     private List<MediaFile> mediaFiles;
     private int index = 0; //List下标
     private long postion; //断点位置
+    private String currentPath;
+    ProgressDialog progressDialog;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -42,26 +48,17 @@ public class MainActivity extends Activity implements
         getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN, WindowManager.LayoutParams.FLAG_FULLSCREEN); //全屏
         setContentView(R.layout.playlayout);
 
-        Intent stopIntent = new Intent(MainActivity.this, ScannerService.class);
-        stopService(stopIntent);
-
         SharedPreferences sharedPreferences = getSharedPreferences("media", MODE_PRIVATE);
         index = sharedPreferences.getInt("currentindex", 0);
-        String currentPath = sharedPreferences.getString("currentpath", null);
+        currentPath = sharedPreferences.getString("currentpath", null);
         postion = sharedPreferences.getLong("postion", 0L);
 
-        mediaFiles = DataSupport.findAll(MediaFile.class);
+
         videoView = (VideoView) findViewById(R.id.vv);
         videoView.setSystemUiVisibility(View.SYSTEM_UI_FLAG_HIDE_NAVIGATION); //隐藏状态栏
 
-        if (mediaFiles.isEmpty()) {
-            Toast.makeText(MainActivity.this, "没有找到视频", Toast.LENGTH_LONG).show();
-            MainActivity.this.finish();
-        }else if (currentPath == null) {
-            mediaPlay(getMediaPath());
-        }else {
-            mediaPlay(currentPath);
-        }
+        new ScannerAsyncTask().execute();
+
     }
 
     private void mediaPlay (String path){
@@ -99,17 +96,45 @@ public class MainActivity extends Activity implements
         if (exitIntent != null) {
             boolean isExit = exitIntent.getBooleanExtra(TAG_EXIT, false);
             if (isExit) {
-                SharedPreferences.Editor editor = getSharedPreferences("media",MODE_PRIVATE).edit();
-                editor.putInt("currentindex",index);
-                editor.putLong("postion",videoView.getCurrentPosition());
-                editor.apply();  //保存播放的视频路径及播放的位置
-                MediaFile.deleteAll(MediaFile.class); //清除数据库数据避免重复
                 MainActivity.this.finish();
             }
         }
     }
 
+    @Override
+    protected void onStop() {
+        Log.e(TAG,"onStop");
+        MediaFile.deleteAll(MediaFile.class); //清除数据库数据避免重复
+        super.onStop();
+    }
 
+    @Override
+    protected void onStart() {
+        Log.e(TAG,"onStart");
+        super.onStart();
+    }
+
+    @Override
+    protected void onResume() {
+        Log.e(TAG,"onResume");
+        super.onResume();
+    }
+
+    @Override
+    protected void onPause() {
+        Log.e(TAG,"onPause"+videoView.getCurrentPosition());
+        SharedPreferences.Editor editor = getSharedPreferences("media",MODE_PRIVATE).edit();
+        editor.putInt("currentindex",index);
+        editor.putLong("postion",videoView.getCurrentPosition());
+        editor.apply();  //保存播放的视频路径及播放的位置
+        super.onPause();
+    }
+
+    @Override
+    protected void onRestart() {
+        Log.e(TAG,"onRestart");
+        super.onRestart();
+    }
 
     @Override
     public void onCompletion(MediaPlayer mp) {
@@ -141,5 +166,55 @@ public class MainActivity extends Activity implements
         videoView.stopPlayback(); //停止视频播放，并释放资源。
         index = index + 1;
         mediaPlay(getMediaPath());
+    }
+
+    class ScannerAsyncTask extends AsyncTask<Void, Integer, Boolean> {
+        @Override
+        protected void onPreExecute() {
+            progressDialog = new ProgressDialog(MainActivity.this);
+            progressDialog.setMessage("视频搜索中......");
+            progressDialog.show();
+            super.onPreExecute();
+        }
+
+        @Override
+        protected Boolean doInBackground(Void... params) {
+            eachAllMedias(Environment.getExternalStorageDirectory().getAbsolutePath());
+            return null;
+        }
+
+        private void eachAllMedias(String path){
+            File[] files = new File(path).listFiles();
+            if (files != null) {
+                for (File file : files) {
+                    if (file.isFile()) {
+                        if (FileUnit.isVideo(file)) {
+                            MediaFile mediaFile = new MediaFile();
+                            mediaFile.setPath(file.getAbsolutePath());
+                            mediaFile.save();
+                        }
+                    } else if (file.isDirectory()
+                            && !file.getPath().contains("/.")) {
+                        eachAllMedias(file.getPath());
+                    }
+                }
+            }
+        }
+
+        @Override
+        protected void onPostExecute(Boolean aBoolean) {
+            progressDialog.dismiss();
+            mediaFiles = DataSupport.findAll(MediaFile.class);
+            if (mediaFiles.isEmpty()) {
+                Toast.makeText(MainActivity.this, "没有找到视频", Toast.LENGTH_LONG).show();
+                MainActivity.this.finish();
+            }else if (currentPath == null) {
+                Log.v(TAG,getMediaPath());
+                mediaPlay(getMediaPath());
+            }else {
+                mediaPlay(currentPath);
+            }
+            super.onPostExecute(aBoolean);
+        }
     }
 }
