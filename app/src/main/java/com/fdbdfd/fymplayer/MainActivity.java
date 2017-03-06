@@ -14,12 +14,10 @@ import android.widget.Toast;
 
 
 import com.fdbdfd.fymplayer.unit.FileUnit;
-import com.fdbdfd.fymplayer.unit.MediaFile;
 
-import org.litepal.crud.DataSupport;
 
 import java.io.File;
-import java.util.List;
+import java.util.ArrayList;
 
 import io.vov.vitamio.MediaPlayer;
 import io.vov.vitamio.Vitamio;
@@ -34,7 +32,7 @@ public class MainActivity extends Activity implements
     private static final String TAG = "MainActivity";
     public static final String TAG_EXIT = "exit"; //APP退出
     private VideoView videoView;
-    private List<MediaFile> mediaFiles;
+    private ArrayList<String> mediaFiles= new ArrayList<>();
     private int index = 0; //List下标
     private long postion; //断点位置
     private String currentPath;
@@ -78,7 +76,7 @@ public class MainActivity extends Activity implements
         if (index == mediaFiles.size() ){
             index = 0;
         }
-        return mediaFiles.get(index).getPath();
+        return mediaFiles.get(index);
     }
 
     @Override
@@ -104,7 +102,6 @@ public class MainActivity extends Activity implements
     @Override
     protected void onStop() {
         Log.e(TAG,"onStop");
-        MediaFile.deleteAll(MediaFile.class); //清除数据库数据避免重复
         super.onStop();
     }
 
@@ -138,6 +135,7 @@ public class MainActivity extends Activity implements
 
     @Override
     public void onCompletion(MediaPlayer mp) {
+        postion = 0L;
         nextMedia();
     }
 
@@ -168,7 +166,7 @@ public class MainActivity extends Activity implements
         mediaPlay(getMediaPath());
     }
 
-    class ScannerAsyncTask extends AsyncTask<Void, Integer, Boolean> {
+    class ScannerAsyncTask extends AsyncTask<Void, Integer, ArrayList<String>> {
         @Override
         protected void onPreExecute() {
             progressDialog = new ProgressDialog(MainActivity.this);
@@ -177,21 +175,13 @@ public class MainActivity extends Activity implements
             super.onPreExecute();
         }
 
-        @Override
-        protected Boolean doInBackground(Void... params) {
-            eachAllMedias(Environment.getExternalStorageDirectory().getAbsolutePath());
-            return null;
-        }
-
         private void eachAllMedias(String path){
             File[] files = new File(path).listFiles();
             if (files != null) {
                 for (File file : files) {
                     if (file.isFile()) {
                         if (FileUnit.isVideo(file)) {
-                            MediaFile mediaFile = new MediaFile();
-                            mediaFile.setPath(file.getAbsolutePath());
-                            mediaFile.save();
+                            mediaFiles.add(file.getAbsolutePath());
                         }
                     } else if (file.isDirectory()
                             && !file.getPath().contains("/.")) {
@@ -202,9 +192,14 @@ public class MainActivity extends Activity implements
         }
 
         @Override
-        protected void onPostExecute(Boolean aBoolean) {
+        protected ArrayList<String> doInBackground(Void... params) {
+            eachAllMedias(Environment.getExternalStorageDirectory().getAbsolutePath());
+            return mediaFiles;
+        }
+
+        @Override
+        protected void onPostExecute(ArrayList<String> list) {
             progressDialog.dismiss();
-            mediaFiles = DataSupport.findAll(MediaFile.class);
             if (mediaFiles.isEmpty()) {
                 Toast.makeText(MainActivity.this, "没有找到视频", Toast.LENGTH_LONG).show();
                 MainActivity.this.finish();
@@ -214,7 +209,7 @@ public class MainActivity extends Activity implements
             }else {
                 mediaPlay(currentPath);
             }
-            super.onPostExecute(aBoolean);
+            super.onPostExecute(list);
         }
     }
 }
