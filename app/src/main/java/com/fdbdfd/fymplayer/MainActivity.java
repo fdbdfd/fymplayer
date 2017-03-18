@@ -73,7 +73,7 @@ public class MainActivity extends Activity implements
     }
 
     private String getMediaPath(){
-        if (index == mediaFiles.size() ){
+        if (index >= mediaFiles.size() ){
             index = 0;
         }
         return mediaFiles.get(index);
@@ -146,7 +146,7 @@ public class MainActivity extends Activity implements
     public boolean onError(MediaPlayer mp, int what, int extra) {
         postion = 0L; //避免因视频被删除导致下个视频播放时被定位
         nextMedia();
-        return false;
+        return true;//false代表会弹窗告诉无法播放等待点击确认，true代表不会弹窗
     }
 
     @Override
