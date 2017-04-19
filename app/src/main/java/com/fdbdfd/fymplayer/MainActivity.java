@@ -10,6 +10,7 @@ import android.os.Environment;
 import android.util.Log;
 import android.view.View;
 import android.view.WindowManager;
+import android.widget.TextView;
 import android.widget.Toast;
 
 
@@ -32,11 +33,13 @@ public class MainActivity extends Activity implements
     private static final String TAG = "MainActivity";
     public static final String TAG_EXIT = "exit"; //APP退出
     private VideoView videoView;
-    private ArrayList<String> mediaFiles= new ArrayList<>();
+    private ArrayList<String> mediaFiles = new ArrayList<>();
+    private ArrayList<String> mediaNames = new ArrayList<>();
     private int index = 0; //List下标
     private long postion; //断点位置
     private String currentPath;
     ProgressDialog progressDialog;
+    private TextView textView;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -44,6 +47,7 @@ public class MainActivity extends Activity implements
         if (!Vitamio.isInitialized(this))
             return;
         getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN, WindowManager.LayoutParams.FLAG_FULLSCREEN); //全屏
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         setContentView(R.layout.playlayout);
 
         SharedPreferences sharedPreferences = getSharedPreferences("media", MODE_PRIVATE);
@@ -51,7 +55,7 @@ public class MainActivity extends Activity implements
         currentPath = sharedPreferences.getString("currentpath", null);
         postion = sharedPreferences.getLong("postion", 0L);
 
-
+        textView = (TextView) findViewById(R.id.name);
         videoView = (VideoView) findViewById(R.id.vv);
         videoView.setSystemUiVisibility(View.SYSTEM_UI_FLAG_HIDE_NAVIGATION); //隐藏状态栏
 
@@ -63,6 +67,7 @@ public class MainActivity extends Activity implements
         SharedPreferences.Editor editor = getSharedPreferences("media",MODE_PRIVATE).edit();
         editor.putString("currentpath",path);
         editor.apply();
+        textView.setText(getMediaName());
         videoView.setHardwareDecoder(true);
         videoView.setVideoPath(path);
         videoView.setMediaController(new MediaController(this));
@@ -70,6 +75,13 @@ public class MainActivity extends Activity implements
         videoView.setOnErrorListener(this);
         videoView.setOnSeekCompleteListener(this);
         videoView.setOnCompletionListener(this);
+    }
+
+    private String getMediaName(){
+        if (index >= mediaNames.size() ){
+            index = 0;
+        }
+        return mediaNames.get(index);
     }
 
     private String getMediaPath(){
@@ -182,6 +194,7 @@ public class MainActivity extends Activity implements
                     if (file.isFile()) {
                         if (FileUnit.isVideo(file)) {
                             mediaFiles.add(file.getAbsolutePath());
+                            mediaNames.add(file.getName());
                         }
                     } else if (file.isDirectory()
                             && !file.getPath().contains("/.")) {
